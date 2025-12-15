@@ -1,0 +1,63 @@
+@inject NavigationManager NavigationManager
+@using System.ComponentModel.DataAnnotations
+
+<div class="nav-item px-3">
+    @if (Menu.HasChildren) {
+        <!-- 有子菜单的菜单项 -->
+        <div class="nav-link cursor-pointer" @onclick='() => ToggleMenu(Menu.Id)'>
+            <span class="@Menu.Icon" aria-hidden="true"></span> @Menu.Title
+            <span class="float-end">@(MenuState[Menu.Id] ? "▼" : "▶")</span>
+        </div>
+        @if (MenuState[Menu.Id]) {
+            <div class="pl-4">
+                @foreach (var child in Menu.Children) {
+                    <NavMenuItem Menu="child" OnAddTab="OnAddTab" MenuState="MenuState" />
+                }
+            </div>
+        }
+    } else {
+        <!-- 没有子菜单的菜单项 -->
+        <div class="nav-link cursor-pointer" @onclick="() => NavigateToMenu(Menu)">
+            <span class="@Menu.Icon" aria-hidden="true"></span> @Menu.Title
+        </div>
+    }
+</div>
+
+@code {
+    // 事件回调：通知父组件添加标签页
+    [Parameter]
+    public EventCallback<TabItem> OnAddTab { get; set; }
+
+    // 参数：菜单项目
+    [Parameter, Required]
+    public MenuItem Menu { get; set; }
+
+    // 参数：菜单展开状态
+    [Parameter, Required]
+    public Dictionary<string, bool> MenuState { get; set; }
+
+    // 切换菜单展开状态
+    private void ToggleMenu(string menuId)
+    {
+        if (MenuState.ContainsKey(menuId))
+        {
+            MenuState[menuId] = !MenuState[menuId];
+        }
+    }
+
+    // 导航到菜单对应的页面
+    private async Task NavigateToMenu(MenuItem menu)
+    {
+        if (!string.IsNullOrEmpty(menu.Url))
+        {
+            await OnAddTab.InvokeAsync(new TabItem 
+            {
+                Id = menu.Id, 
+                Title = menu.Title, 
+                Url = menu.Url, 
+                IsActive = false, 
+                IsClosable = menu.IsClosable 
+            });
+        }
+    }
+}

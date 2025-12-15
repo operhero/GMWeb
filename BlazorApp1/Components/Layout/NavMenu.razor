@@ -1,0 +1,69 @@
+@inject NavigationManager NavigationManager
+@inject PermissionService PermissionService
+
+<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="">BlazorApp1</a>
+    </div>
+</div>
+
+<input type="checkbox" title="Navigation menu" class="navbar-toggler"/>
+
+<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+    <nav class="nav flex-column">
+        <!-- 动态渲染菜单 -->
+        @foreach (var menu in Menus) {
+            <NavMenuItem Menu="menu" OnAddTab="OnAddTab" MenuState="menuState" />
+        }
+    </nav>
+</div>
+
+@code {
+    // 事件回调：通知父组件添加标签页
+    [Parameter]
+    public EventCallback<TabItem> OnAddTab { get; set; }
+
+    // 用户可访问的菜单列表
+    private List<MenuItem> Menus { get; set; } = new List<MenuItem>();
+
+    // 菜单展开状态管理
+    private Dictionary<string, bool> menuState = new Dictionary<string, bool>();
+
+    // 初始化菜单
+    protected override async Task OnInitializedAsync()
+    {
+        await base.OnInitializedAsync();
+        
+        // 获取用户可访问的菜单
+        Menus = await PermissionService.GetMenusForUserAsync();
+        
+        Console.WriteLine($"[DEBUG] NavMenu - Menus count: {Menus.Count}");
+        foreach (var menu in Menus)
+        {
+            Console.WriteLine($"[DEBUG] NavMenu - Menu: {menu.Title}, HasChildren: {menu.HasChildren}, Children count: {menu.Children.Count}");
+        }
+        
+        // 初始化菜单展开状态
+        InitializeMenuState(Menus);
+        Console.WriteLine($"[DEBUG] NavMenu - MenuState count: {menuState.Count}");
+    }
+
+    // 初始化菜单展开状态
+    private void InitializeMenuState(List<MenuItem> menus)
+    {
+        foreach (var menu in menus)
+        {
+            // 默认所有菜单都折叠
+            if (!menuState.ContainsKey(menu.Id))
+            {
+                menuState[menu.Id] = false;
+            }
+            
+            // 如果有子菜单，递归初始化
+            if (menu.HasChildren)
+            {
+                InitializeMenuState(menu.Children);
+            }
+        }
+    }
+}

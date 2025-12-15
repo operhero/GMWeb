@@ -1,0 +1,137 @@
+@inherits LayoutComponentBase
+@using Microsoft.AspNetCore.Components.Authorization
+@using Microsoft.AspNetCore.Components.Web
+@using System.ComponentModel.DataAnnotations
+
+<div class="page">
+    <div class="sidebar">
+        <NavMenu OnAddTab="HandleAddTab"/>
+    </div>
+
+    <main>
+        <div class="top-row px-4">
+            <AuthorizeView>
+                <Authorized>
+                    <span>欢迎, @context.User.Identity.Name</span>
+                    <button class="btn btn-link" @onclick="Logout">注销</button>
+                </Authorized>
+                <NotAuthorized>
+                    <a href="https://learn.microsoft.com/aspnet/core/" target="_blank">About</a>
+                </NotAuthorized>
+            </AuthorizeView>
+        </div>
+
+        <!-- 标签页栏 -->
+        <div class="tab-bar">
+            <ul class="nav nav-tabs">
+                @foreach (var tab in Tabs)
+                {
+                    <li class="nav-item">
+                        <button 
+                            class="nav-link @(tab.IsActive ? "active" : "")" 
+                            @onclick="() => SwitchTab(tab)"
+                            @oncontextmenu:preventDefault>
+                            @tab.Title
+                            @if (tab.IsClosable)
+                            {
+                                <span class="tab-close" @onclick:stopPropagation @onclick="() => CloseTab(tab)">
+                                    ×
+                                </span>
+                            }
+                        </button>
+                    </li>
+                }
+            </ul>
+        </div>
+
+        <article class="content px-4">
+            @Body
+        </article>
+    </main>
+</div>
+
+@code {
+    [Inject, Required]
+    private AuthenticationStateProvider AuthenticationStateProvider { get; set; }
+
+    [Inject, Required]
+    private NavigationManager NavigationManager { get; set; }
+
+    // 标签页集合
+    private List<TabItem> Tabs { get; set; } = new List<TabItem>();
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        // 初始化默认标签页（仪表盘）
+        AddTab(new TabItem { Id = "dashboard", Title = "仪表盘", Url = "/dashboard", IsActive = true, IsClosable = false });
+    }
+
+    private void Logout()
+    {
+        ((CustomAuthenticationStateProvider)AuthenticationStateProvider).Logout();
+        NavigationManager.NavigateTo("/login");
+    }
+
+    // 添加标签页
+    public void AddTab(TabItem newTab)
+    {
+        // 检查是否已存在相同URL的标签页
+        var existingTab = Tabs.FirstOrDefault(t => t.Url == newTab.Url);
+        if (existingTab != null)
+        {
+            // 如果已存在，则激活该标签页
+            SwitchTab(existingTab);
+            return;
+        }
+
+        // 激活新标签页前，先将所有其他标签页设置为非激活
+        Tabs.ForEach(t => t.IsActive = false);
+        
+        // 添加新标签页
+        Tabs.Add(newTab);
+    }
+
+    // 切换标签页
+    private void SwitchTab(TabItem tab)
+    {
+        // 将所有标签页设置为非激活
+        Tabs.ForEach(t => t.IsActive = false);
+        
+        // 激活选中的标签页
+        tab.IsActive = true;
+        
+        // 导航到标签页对应的URL
+        NavigationManager.NavigateTo(tab.Url);
+    }
+
+    // 关闭标签页
+    private void CloseTab(TabItem tab)
+    {
+        if (!tab.IsClosable) return;
+
+        var tabIndex = Tabs.IndexOf(tab);
+        Tabs.Remove(tab);
+
+        // 如果关闭的是当前激活的标签页，则激活下一个标签页
+        if (tab.IsActive && Tabs.Count > 0)
+        {
+            // 如果有下一个标签页，则激活下一个
+            // 否则激活上一个标签页
+            var newActiveTab = tabIndex < Tabs.Count ? Tabs[tabIndex] : Tabs.Last();
+            SwitchTab(newActiveTab);
+        }
+    }
+
+    // 处理来自NavMenu的添加标签页请求
+    private void HandleAddTab(TabItem tabItem)
+    {
+        AddTab(tabItem);
+    }
+}
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>

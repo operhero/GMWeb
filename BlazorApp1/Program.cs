@@ -1,6 +1,9 @@
+using BlazorApp1.Services;
 using BlazorApp1.Components;
+using BlazorApp1.Data;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -16,6 +19,13 @@ builder.Services.AddScoped<AuthenticationStateProvider, CustomAuthenticationStat
 
 // 注册权限服务
 builder.Services.AddScoped<PermissionService>();
+
+// 注册数据库上下文
+builder.Services.AddDbContext<AdminDbContext>(options =>
+    options.UseMySql(
+        builder.Configuration.GetConnectionString("DefaultConnection"),
+        MySqlServerVersion.AutoDetect(builder.Configuration.GetConnectionString("DefaultConnection"))
+    ));
 
 var app = builder.Build();
 

@@ -1,24 +1,45 @@
 @inject NavigationManager NavigationManager
 @using System.ComponentModel.DataAnnotations
+@using BlazorApp1.Services
+@using BlazorApp1.Models
 
 <div class="nav-item px-3">
-    @if (Menu.HasChildren) {
+    @if (Menu.HasChildren)
+    {
         <!-- 有子菜单的菜单项 -->
-        <div class="nav-link cursor-pointer" @onclick='() => ToggleMenu(Menu.Id)'>
-            <span class="@Menu.Icon" aria-hidden="true"></span> @Menu.Title
-            <span class="float-end">@(MenuState[Menu.Id] ? "▼" : "▶")</span>
+        <div 
+            class="nav-link cursor-pointer nav-parent-item"
+            @onclick="ToggleSubmenu"
+            role="button"
+            aria-expanded="@IsExpanded"
+            aria-haspopup="true">
+            <span class="@Menu.Icon" aria-hidden="true"></span>
+            <span class="nav-item-title">@Menu.Title</span>
+            <span class="nav-item-arrow float-end">@(IsExpanded ? "▼" : "▶")</span>
         </div>
-        @if (MenuState[Menu.Id]) {
-            <div class="pl-4">
-                @foreach (var child in Menu.Children) {
-                    <NavMenuItem Menu="child" OnAddTab="OnAddTab" MenuState="MenuState" />
+        
+        @if (IsExpanded)
+        {
+            <div class="nav-submenu pl-4">
+                @foreach (var child in Menu.Children)
+                {
+                    <NavMenuItem 
+                        Menu="child" 
+                        OnAddTab="OnAddTab" 
+                        MenuState="MenuState" />
                 }
             </div>
         }
-    } else {
+    }
+    else
+    {
         <!-- 没有子菜单的菜单项 -->
-        <div class="nav-link cursor-pointer" @onclick="() => NavigateToMenu(Menu)">
-            <span class="@Menu.Icon" aria-hidden="true"></span> @Menu.Title
+        <div 
+            class="nav-link cursor-pointer nav-child-item"
+            @onclick="NavigateToMenu"
+            role="button">
+            <span class="@Menu.Icon" aria-hidden="true"></span>
+            <span class="nav-item-title">@Menu.Title</span>
         </div>
     }
 </div>
@@ -36,27 +57,27 @@
     [Parameter, Required]
     public Dictionary<string, bool> MenuState { get; set; }
 
-    // 切换菜单展开状态
-    private void ToggleMenu(string menuId)
+    // 当前菜单是否展开
+    private bool IsExpanded => MenuState.TryGetValue(Menu.Id, out var expanded) && expanded;
+
+    // 切换子菜单展开状态
+    private void ToggleSubmenu()
     {
-        if (MenuState.ContainsKey(menuId))
-        {
-            MenuState[menuId] = !MenuState[menuId];
-        }
+        MenuState[Menu.Id] = !IsExpanded;
     }
 
     // 导航到菜单对应的页面
-    private async Task NavigateToMenu(MenuItem menu)
+    private async Task NavigateToMenu()
     {
-        if (!string.IsNullOrEmpty(menu.Url))
+        if (!string.IsNullOrEmpty(Menu.Url))
         {
             await OnAddTab.InvokeAsync(new TabItem 
             {
-                Id = menu.Id, 
-                Title = menu.Title, 
-                Url = menu.Url, 
+                Id = Menu.Id, 
+                Title = Menu.Title, 
+                Url = Menu.Url, 
                 IsActive = false, 
-                IsClosable = menu.IsClosable 
+                IsClosable = Menu.IsClosable 
             });
         }
     }

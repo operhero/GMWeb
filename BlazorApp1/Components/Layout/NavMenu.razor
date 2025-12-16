@@ -1,24 +1,32 @@
 @inject NavigationManager NavigationManager
-@inject PermissionService PermissionService
+@inject BlazorApp1.Services.PermissionService PermissionService
+@using System.ComponentModel.DataAnnotations
+@using BlazorApp1.Services
+@using BlazorApp1.Models
 
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
-        <a class="navbar-brand" href="">BlazorApp1</a>
+        <a class="navbar-brand" @onclick="Logout">退出登录</a>
+        @* <button class="navbar-toggle-btn" @onclick="ToggleMenuVisibility"> *@
+        @*     <span class="navbar-toggle-icon"></span> *@
+        @* </button> *@
     </div>
 </div>
 
-<input type="checkbox" title="Navigation menu" class="navbar-toggler"/>
-
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="nav flex-column">
-        <!-- 动态渲染菜单 -->
-        @foreach (var menu in Menus) {
-            <NavMenuItem Menu="menu" OnAddTab="OnAddTab" MenuState="menuState" />
-        }
-    </nav>
-</div>
+<nav class="sidebar-nav @(IsMenuVisible ? "sidebar-visible" : "sidebar-hidden")">
+    <div class="nav-scrollable">
+        <div class="nav flex-column">
+            <!-- 动态渲染菜单 -->
+            @foreach (var menu in Menus) {
+                <NavMenuItem Menu="menu" OnAddTab="OnAddTab" MenuState="menuState" />
+            }
+        </div>
+    </div>
+</nav>
 
 @code {
+    [Inject, Required]
+    private AuthenticationStateProvider AuthenticationStateProvider { get; set; }
     // 事件回调：通知父组件添加标签页
     [Parameter]
     public EventCallback<TabItem> OnAddTab { get; set; }
@@ -29,6 +37,9 @@
     // 菜单展开状态管理
     private Dictionary<string, bool> menuState = new Dictionary<string, bool>();
 
+    // 侧边栏可见性状态
+    private bool IsMenuVisible { get; set; } = true;
+
     // 初始化菜单
     protected override async Task OnInitializedAsync()
     {
@@ -37,15 +48,8 @@
         // 获取用户可访问的菜单
         Menus = await PermissionService.GetMenusForUserAsync();
         
-        Console.WriteLine($"[DEBUG] NavMenu - Menus count: {Menus.Count}");
-        foreach (var menu in Menus)
-        {
-            Console.WriteLine($"[DEBUG] NavMenu - Menu: {menu.Title}, HasChildren: {menu.HasChildren}, Children count: {menu.Children.Count}");
-        }
-        
         // 初始化菜单展开状态
         InitializeMenuState(Menus);
-        Console.WriteLine($"[DEBUG] NavMenu - MenuState count: {menuState.Count}");
     }
 
     // 初始化菜单展开状态
@@ -54,10 +58,7 @@
         foreach (var menu in menus)
         {
             // 默认所有菜单都折叠
-            if (!menuState.ContainsKey(menu.Id))
-            {
-                menuState[menu.Id] = false;
-            }
+            menuState.TryAdd(menu.Id, false);
             
             // 如果有子菜单，递归初始化
             if (menu.HasChildren)
@@ -65,5 +66,17 @@
                 InitializeMenuState(menu.Children);
             }
         }
+    }
+
+    // 切换侧边栏可见性
+    private void ToggleMenuVisibility()
+    {
+        IsMenuVisible = !IsMenuVisible;
+    }
+    
+    private void Logout()
+    {
+        ((CustomAuthenticationStateProvider)AuthenticationStateProvider).Logout();
+        NavigationManager.NavigateTo("/login");
     }
 }

@@ -2,6 +2,8 @@
 @rendermode InteractiveServer
 @using System.ComponentModel.DataAnnotations
 @using System.Security.Claims
+@using BlazorApp1.Services
+@inject BlazorApp1.Services.PermissionService PermissionService
 
 @inject AuthenticationStateProvider AuthenticationStateProvider
 
@@ -47,38 +49,11 @@
 
     private void HandleLogin()
     {
-        // 简单的用户名密码验证
-        if (loginModel.Username == "admin" && loginModel.Password == "password")
+        loginFailed = !PermissionService.CheckLogin(loginModel.Username, loginModel.Password);
+        if (!loginFailed)
         {
-            var claims = new List<Claim>
-            {
-                new Claim(ClaimTypes.Name, loginModel.Username),
-                new Claim(ClaimTypes.Role, "User"),
-                // 为管理员用户添加所有权限
-                new Claim(ClaimTypes.Role, "dashboard_access"),
-                new Claim(ClaimTypes.Role, "menu1_access"),
-                new Claim(ClaimTypes.Role, "submenu1_1_access"),
-                new Claim(ClaimTypes.Role, "submenu1_2_access"),
-                new Claim(ClaimTypes.Role, "submenu1_1_1_access"),
-                new Claim(ClaimTypes.Role, "submenu1_1_2_access"),
-                new Claim(ClaimTypes.Role, "menu2_access"),
-                new Claim(ClaimTypes.Role, "submenu2_1_access"),
-                new Claim(ClaimTypes.Role, "submenu2_2_access"),
-                new Claim(ClaimTypes.Role, "counter_access"),
-                new Claim(ClaimTypes.Role, "weather_access")
-            };
-
-            var identity = new ClaimsIdentity(claims, "CustomAuth");
-            var principal = new ClaimsPrincipal(identity);
-
-            ((CustomAuthenticationStateProvider)AuthenticationStateProvider).UpdateAuthenticationState(principal);
-            
             // 主动导航到仪表盘页面
             NavigationManager.NavigateTo("/dashboard");
-        }
-        else
-        {
-            loginFailed = true;
         }
     }
 

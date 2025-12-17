@@ -19,6 +19,7 @@ builder.Services.AddCascadingAuthenticationState();
 
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<AuthenticationStateProvider, CustomAuthenticationStateProvider>();
+builder.Services.AddScoped<CountService>();
 
 // 注册权限服务
 builder.Services.AddScoped<PermissionService>();

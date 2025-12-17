@@ -1,6 +1,6 @@
-using BlazorApp1.Services;
-using BlazorApp1.Components;
-using BlazorApp1.Data;
+using GMWeb.Services;
+using GMWeb.Components;
+using GMWeb.Data;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.AspNetCore.Components.Authorization;
 using Microsoft.EntityFrameworkCore;

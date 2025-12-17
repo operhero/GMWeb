@@ -3,7 +3,7 @@ using Microsoft.EntityFrameworkCore.Migrations;
 
 #nullable disable
 
-namespace BlazorApp1.Migrations
+namespace GMWeb.Migrations
 {
     /// <inheritdoc />
     public partial class InitialCreate : Migration

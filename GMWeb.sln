@@ -1,6 +1,6 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "BlazorApp1", "BlazorApp1\BlazorApp1.csproj", "{FC8670C7-524A-4D8D-B64D-D793BD522CEE}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "GMWeb", "GMWeb\GMWeb.csproj", "{FC8670C7-524A-4D8D-B64D-D793BD522CEE}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

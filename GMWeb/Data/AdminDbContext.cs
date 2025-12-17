@@ -1,7 +1,7 @@
-using BlazorApp1.Models;
+using GMWeb.Models;
 using Microsoft.EntityFrameworkCore;
 
-namespace BlazorApp1.Data;
+namespace GMWeb.Data;
 
 public class AdminDbContext : DbContext
 {

@@ -1,4 +1,4 @@
-namespace BlazorApp1.Models;
+namespace GMWeb.Models;
 
 // 导航菜单项模型
 public class MenuItem

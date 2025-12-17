@@ -1,4 +1,4 @@
-﻿namespace BlazorApp1.Models;
+﻿namespace GMWeb.Models;
 
 public class User
 {

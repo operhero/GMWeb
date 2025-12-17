@@ -1,4 +1,4 @@
-namespace BlazorApp1.Models;
+namespace GMWeb.Models;
 
 // 权限模型
 public class Permission

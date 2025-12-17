@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.Components.Authorization;
 using System.Security.Claims;
 
-namespace BlazorApp1.Components
+namespace GMWeb.Components
 {
     public class CustomAuthenticationStateProvider()
         : AuthenticationStateProvider

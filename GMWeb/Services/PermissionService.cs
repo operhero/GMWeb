@@ -1,13 +1,13 @@
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
-using BlazorApp1.Components;
-using BlazorApp1.Data;
 using Microsoft.AspNetCore.Components.Authorization;
-using BlazorApp1.Models;
+using GMWeb.Components;
+using GMWeb.Data;
+using GMWeb.Models;
 using Microsoft.AspNetCore.Components;
 
-namespace BlazorApp1.Services;
+namespace GMWeb.Services;
 
 // 权限服务，用于管理权限和菜单
 public class PermissionService

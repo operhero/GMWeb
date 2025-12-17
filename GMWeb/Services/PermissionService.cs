@@ -6,11 +6,8 @@ using GMWeb.Components;
 using GMWeb.Data;
 using GMWeb.Models;
 using Microsoft.AspNetCore.Components;
-using System.IdentityModel.Tokens.Jwt;
-using System.Text.Json;
 using Microsoft.AspNetCore.Http;
-using Microsoft.IdentityModel.Tokens;
-using System.Web;
+using Microsoft.AspNetCore.Authentication.Cookies;
 
 namespace GMWeb.Services;
 
@@ -19,13 +16,11 @@ public class PermissionService
 {
     private readonly AuthenticationStateProvider _authenticationStateProvider;
     private readonly AdminDbContext  _adminDbContext;
-    private readonly JwtService _jwtService;
     
-    public PermissionService(AuthenticationStateProvider authenticationStateProvider, AdminDbContext adminDbContext, JwtService jwtService)
+    public PermissionService(AuthenticationStateProvider authenticationStateProvider, AdminDbContext adminDbContext)
     {
         _authenticationStateProvider = authenticationStateProvider;
         _adminDbContext = adminDbContext;
-        _jwtService = jwtService;
     }
     
     // 获取所有可用权限（模拟数据）
@@ -300,9 +295,6 @@ public class PermissionService
                 // 获取所有权限
                 var permissions = GetAllPermissions().Select(p => p.Id).ToList();
                 
-                // 生成JWT令牌
-                var token = _jwtService.GenerateToken(user, permissions);
-                
                 // 创建声明
                 var claims = new List<Claim>
                 {
@@ -316,11 +308,11 @@ public class PermissionService
                 // 添加权限声明
                 claims.AddRange(permissions.Select(permission => new Claim(ClaimTypes.Role, permission)));
 
-                var identity = new ClaimsIdentity(claims, "CustomAuth");
+                var identity = new ClaimsIdentity(claims, CookieAuthenticationDefaults.AuthenticationScheme);
                 var principal = new ClaimsPrincipal(identity);
 
-                // 更新认证状态并存储令牌
-                ((CustomAuthenticationStateProvider)_authenticationStateProvider).UpdateAuthenticationState(principal, token);
+                // 更新认证状态
+                ((CustomAuthenticationStateProvider)_authenticationStateProvider).UpdateAuthenticationState(principal);
                 
                 return true;
             }

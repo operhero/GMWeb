@@ -3,10 +3,14 @@
 @using System.ComponentModel.DataAnnotations
 @using GMWeb.Services
 @using GMWeb.Models
+@using System.Security.Claims
+@using Microsoft.AspNetCore.Authentication
+@using Microsoft.AspNetCore.Authentication.Cookies
+@using Microsoft.AspNetCore.Http
 
 <div class="top-row ps-3 navbar navbar-dark">
     <div class="container-fluid">
-        <a class="navbar-brand" @onclick="Logout">退出登录</a>
+        <a class="navbar-brand" href="/logout">退出登录</a>
         @* <button class="navbar-toggle-btn" @onclick="ToggleMenuVisibility"> *@
         @*     <span class="navbar-toggle-icon"></span> *@
         @* </button> *@
@@ -72,11 +76,5 @@
     private void ToggleMenuVisibility()
     {
         IsMenuVisible = !IsMenuVisible;
-    }
-    
-    private void Logout()
-    {
-        ((CustomAuthenticationStateProvider)AuthenticationStateProvider).Logout();
-        NavigationManager.NavigateTo("/login");
     }
 }

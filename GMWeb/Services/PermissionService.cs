@@ -6,6 +6,11 @@ using GMWeb.Components;
 using GMWeb.Data;
 using GMWeb.Models;
 using Microsoft.AspNetCore.Components;
+using System.IdentityModel.Tokens.Jwt;
+using System.Text.Json;
+using Microsoft.AspNetCore.Http;
+using Microsoft.IdentityModel.Tokens;
+using System.Web;
 
 namespace GMWeb.Services;
 
@@ -14,11 +19,13 @@ public class PermissionService
 {
     private readonly AuthenticationStateProvider _authenticationStateProvider;
     private readonly AdminDbContext  _adminDbContext;
+    private readonly JwtService _jwtService;
     
-    public PermissionService(AuthenticationStateProvider authenticationStateProvider, AdminDbContext adminDbContext)
+    public PermissionService(AuthenticationStateProvider authenticationStateProvider, AdminDbContext adminDbContext, JwtService jwtService)
     {
         _authenticationStateProvider = authenticationStateProvider;
         _adminDbContext = adminDbContext;
+        _jwtService = jwtService;
     }
     
     // 获取所有可用权限（模拟数据）
@@ -290,28 +297,30 @@ public class PermissionService
             // 验证密码是否正确
             if (hashString == user.Pwd)
             {
+                // 获取所有权限
+                var permissions = GetAllPermissions().Select(p => p.Id).ToList();
+                
+                // 生成JWT令牌
+                var token = _jwtService.GenerateToken(user, permissions);
+                
+                // 创建声明
                 var claims = new List<Claim>
                 {
+                    new Claim(ClaimTypes.NameIdentifier, user.Uid.ToString()),
                     new Claim(ClaimTypes.Name, user.Uname),
                     new Claim(ClaimTypes.Role, "User"),
-                    // 为管理员用户添加所有权限
-                    new Claim(ClaimTypes.Role, "dashboard_access"),
-                    new Claim(ClaimTypes.Role, "menu1_access"),
-                    new Claim(ClaimTypes.Role, "submenu1_1_access"),
-                    new Claim(ClaimTypes.Role, "submenu1_2_access"),
-                    new Claim(ClaimTypes.Role, "submenu1_1_1_access"),
-                    new Claim(ClaimTypes.Role, "submenu1_1_2_access"),
-                    new Claim(ClaimTypes.Role, "menu2_access"),
-                    new Claim(ClaimTypes.Role, "submenu2_1_access"),
-                    new Claim(ClaimTypes.Role, "submenu2_2_access"),
-                    new Claim(ClaimTypes.Role, "counter_access"),
-                    new Claim(ClaimTypes.Role, "weather_access")
+                    new Claim("SysId", user.SysId.ToString()),
+                    new Claim("RoleId", user.RoleId.ToString())
                 };
+                
+                // 添加权限声明
+                claims.AddRange(permissions.Select(permission => new Claim(ClaimTypes.Role, permission)));
 
                 var identity = new ClaimsIdentity(claims, "CustomAuth");
                 var principal = new ClaimsPrincipal(identity);
 
-                ((CustomAuthenticationStateProvider)_authenticationStateProvider).UpdateAuthenticationState(principal);
+                // 更新认证状态并存储令牌
+                ((CustomAuthenticationStateProvider)_authenticationStateProvider).UpdateAuthenticationState(principal, token);
                 
                 return true;
             }

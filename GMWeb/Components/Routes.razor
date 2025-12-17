@@ -26,7 +26,7 @@
                 <NotAuthorized>
                     @if (!routeData.PageType.Name.Equals("Login", StringComparison.OrdinalIgnoreCase))
                     {
-                        <a href="/login">请先登录</a>
+                        NavigationManager.NavigateTo("/login", forceLoad: true);
                     }
                 </NotAuthorized>
             </AuthorizeView>

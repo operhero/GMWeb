@@ -38,7 +38,8 @@ public class PermissionService
             new Permission { Id = "submenu2_1_access", Name = "子菜单2-1访问", Description = "允许访问子菜单2-1", Type = "page" },
             new Permission { Id = "submenu2_2_access", Name = "子菜单2-2访问", Description = "允许访问子菜单2-2", Type = "page" },
             new Permission { Id = "counter_access", Name = "计数器访问", Description = "允许访问计数器页面", Type = "page" },
-            new Permission { Id = "weather_access", Name = "天气访问", Description = "允许访问天气页面", Type = "page" }
+            new Permission { Id = "weather_access", Name = "天气访问", Description = "允许访问天气页面", Type = "page" },
+            new Permission { Id = "game_access", Name = "游戏访问", Description = "允许访问游戏页面", Type = "page" }
         };
     }
     
@@ -167,6 +168,39 @@ public class PermissionService
                 ParentId = string.Empty,
                 RequiredPermission = "weather_access",
                 Order = 4
+            },
+            new MenuItem
+            {
+                Id = "game",
+                Title = "游戏",
+                Icon = "bi bi-controller-nav-menu",
+                Url = string.Empty,
+                ParentId = string.Empty,
+                RequiredPermission = "game_access",
+                IsClosable = true,
+                Order = 5
+            },
+            new MenuItem
+            {
+                Id = "tetris",
+                Title = "俄罗斯方块",
+                Icon = "bi bi-cube-fill-nav-menu",
+                Url = "/games/teris",
+                ParentId = "game",
+                RequiredPermission = "game_access",
+                IsClosable = true,
+                Order = 0
+            },
+            new MenuItem
+            {
+                Id = "angrybirds",
+                Title = "愤怒的小鸟",
+                Icon = "bi bi-bird-fill-nav-menu",
+                Url = "/games/angrybirds",
+                ParentId = "game",
+                RequiredPermission = "game_access",
+                IsClosable = true,
+                Order = 1
             }
         };
     }

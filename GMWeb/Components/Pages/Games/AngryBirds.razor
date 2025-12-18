@@ -1,0 +1,486 @@
+@page "/games/angrybirds"
+@using Microsoft.JSInterop
+@using System.Drawing
+@inject IJSRuntime JSRuntime
+
+@implements IDisposable
+
+<h1 class="text-center mb-4">愤怒的小鸟</h1>
+
+<div class="container">
+    <div class="game-container">
+        <canvas id="gameCanvas" width="800" height="600" @onmousedown="OnMouseDown" @onmousemove="OnMouseMove" @onmouseup="OnMouseUp"></canvas>
+    </div>
+    
+    <div class="game-info">
+        <h3>分数: @Score</h3>
+        <h3>剩余小鸟: @BirdsLeft</h3>
+        <button class="btn btn-primary" @onclick="ResetGame">重新开始</button>
+    </div>
+</div>
+
+@code {
+    // 游戏常量
+    private const int CanvasWidth = 800;
+    private const int CanvasHeight = 600;
+    private const int BirdRadius = 20;
+    private const int SlingshotX = 100;
+    private const int SlingshotY = 400;
+    private const int SlingshotLength = 150;
+    private const double Gravity = 0.5;
+    private const double AirResistance = 0.99;
+    private const int PigWidth = 60;
+    private const int PigHeight = 60;
+    private const int PigCount = 5;
+    private const int GroundY = 500;
+    private const double BounceCoefficient = 0.5; // 反弹系数，0-1之间
+    
+    // 游戏状态
+    private int Score = 0;
+    private int BirdsLeft = 3;
+    private bool IsDragging = false;
+    private bool IsBirdFlying = false;
+    private PointF BirdPosition;
+    private PointF BirdVelocity;
+    private PointF MousePosition;
+    private List<Pig> Pigs = new List<Pig>();
+    private List<Explosion> Explosions = new List<Explosion>();
+    private Random random = new Random();
+    
+    protected override void OnInitialized()
+    {
+        InitializeGame();
+    }
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await DrawGame();
+        }
+    }
+    
+    private void InitializeGame()
+    {
+        Score = 0;
+        BirdsLeft = 3;
+        IsDragging = false;
+        IsBirdFlying = false;
+        BirdPosition = new PointF(SlingshotX, SlingshotY);
+        BirdVelocity = new PointF(0, 0);
+        MousePosition = new PointF(SlingshotX, SlingshotY);
+        
+        // 初始化爆炸效果
+        Explosions.Clear();
+        
+        // 初始化猪头
+        Pigs.Clear();
+        for (int i = 0; i < PigCount; i++)
+        {
+            Pigs.Add(new Pig
+            {
+                X = random.Next(400, CanvasWidth - PigWidth),
+                Y = random.Next(200, GroundY - PigHeight),
+                Width = PigWidth,
+                Height = PigHeight,
+                IsHit = false
+            });
+        }
+    }
+    
+    private void OnMouseDown(MouseEventArgs e)
+    {
+        if (!IsBirdFlying && BirdsLeft > 0)
+        {
+            IsDragging = true;
+        }
+    }
+    
+    private void OnMouseMove(MouseEventArgs e)
+    {
+        if (IsDragging)
+        {
+            // 直接使用鼠标事件的坐标，假设画布没有滚动或偏移
+            MousePosition = new PointF((float)e.OffsetX, (float)e.OffsetY);
+            
+            // 限制鸟的拖拽范围
+            var dx = MousePosition.X - SlingshotX;
+            var dy = MousePosition.Y - SlingshotY;
+            var distance = Math.Sqrt(dx * dx + dy * dy);
+            
+            if (distance > SlingshotLength)
+            {
+                var angle = Math.Atan2(dy, dx);
+                MousePosition.X = SlingshotX + (float)(SlingshotLength * Math.Cos(angle));
+                MousePosition.Y = SlingshotY + (float)(SlingshotLength * Math.Sin(angle));
+            }
+            
+            // 更新鸟的位置
+            BirdPosition = MousePosition;
+            
+            // 重绘游戏
+            _ = DrawGame();
+        }
+    }
+    
+    private void OnMouseUp(MouseEventArgs e)
+    {
+        if (IsDragging)
+        {
+            IsDragging = false;
+            
+            // 计算发射速度
+            var dx = SlingshotX - BirdPosition.X;
+            var dy = SlingshotY - BirdPosition.Y;
+            BirdVelocity = new PointF(dx * 0.5f, dy * 0.5f);
+            
+            IsBirdFlying = true;
+            BirdsLeft--;
+            
+            // 开始物理模拟
+            _ = UpdateGame();
+        }
+    }
+    
+    private async Task UpdateGame()
+    {
+        while (IsBirdFlying)
+        {
+            // 更新鸟的位置
+            BirdPosition.X += BirdVelocity.X;
+            BirdPosition.Y += BirdVelocity.Y;
+            
+            // 应用重力
+            BirdVelocity.Y += (float)Gravity;
+            
+            // 应用空气阻力
+            BirdVelocity.X *= (float)AirResistance;
+            BirdVelocity.Y *= (float)AirResistance;
+            
+            // 检查地面碰撞
+            if (BirdPosition.Y + BirdRadius >= GroundY)
+            {
+                // 地面碰撞反弹
+                BirdPosition.Y = GroundY - BirdRadius;
+                BirdVelocity.Y = -BirdVelocity.Y * (float)BounceCoefficient;
+                BirdVelocity.X *= (float)AirResistance; // 额外减少水平速度
+                
+                // 检查反弹后速度是否足够小，如果太小则停止反弹
+                if (Math.Abs(BirdVelocity.Y) < 0.5)
+                {
+                    BirdVelocity.Y = 0;
+                    IsBirdFlying = false;
+                    
+                    // 检查是否还有小鸟
+                    if (BirdsLeft > 0)
+                    {
+                        // 重置鸟的位置
+                        BirdPosition = new PointF(SlingshotX, SlingshotY);
+                        BirdVelocity = new PointF(0, 0);
+                    }
+                    else
+                    {
+                        // 检查游戏结束
+                        CheckGameOver();
+                    }
+                }
+            }
+            
+            // 检查碰撞
+            CheckCollisions();
+            
+            // 检查鸟是否飞出屏幕
+            if (BirdPosition.X > CanvasWidth || BirdPosition.X < 0 || BirdPosition.Y < 0)
+            {
+                IsBirdFlying = false;
+                
+                // 检查是否还有小鸟
+                if (BirdsLeft > 0)
+                {
+                    // 重置鸟的位置
+                    BirdPosition = new PointF(SlingshotX, SlingshotY);
+                    BirdVelocity = new PointF(0, 0);
+                }
+                else
+                {
+                    // 检查游戏结束
+                    CheckGameOver();
+                }
+            }
+            
+            // 更新爆炸效果
+            UpdateExplosions();
+            
+            // 重绘游戏
+            await DrawGame();
+            
+            // 等待下一帧
+            await Task.Delay(20);
+        }
+    }
+    
+    private void CheckCollisions()
+    {
+        foreach (var pig in Pigs)
+        {
+            if (!pig.IsHit && IsColliding(BirdPosition, BirdRadius, pig))
+            {
+                pig.IsHit = true;
+                Score += 100;
+                
+                // 添加爆炸效果
+                Explosions.Add(new Explosion
+                {
+                    X = pig.X + pig.Width / 2,
+                    Y = pig.Y + pig.Height / 2,
+                    Radius = 0,
+                    MaxRadius = 80,
+                    IsActive = true
+                });
+                
+                BirdPosition = new PointF(-100, -100); // 将鸟移出屏幕
+                IsBirdFlying = false;
+                
+                // 检查是否还有小鸟
+                if (BirdsLeft > 0)
+                {
+                    // 重置鸟的位置
+                    BirdPosition = new PointF(SlingshotX, SlingshotY);
+                    BirdVelocity = new PointF(0, 0);
+                }
+                else
+                {
+                    // 检查游戏结束
+                    CheckGameOver();
+                }
+                break;
+            }
+        }
+    }
+    
+    private bool IsColliding(PointF birdPos, float birdRadius, Pig pig)
+    {
+        // 简化的碰撞检测：检查鸟的圆心是否在目标矩形内
+        return birdPos.X + birdRadius > pig.X &&
+               birdPos.X - birdRadius < pig.X + pig.Width &&
+               birdPos.Y + birdRadius > pig.Y &&
+               birdPos.Y - birdRadius < pig.Y + pig.Height;
+    }
+    
+    private void CheckGameOver()
+    {
+        // 检查是否所有猪头都被击中
+        if (Pigs.All(p => p.IsHit))
+        {
+            // 游戏胜利
+            Score += 500; // 奖励分
+        }
+    }
+    
+    private void ResetGame()
+    {
+        InitializeGame();
+        _ = DrawGame();
+    }
+    
+    private async Task DrawGame()
+    {
+        await JSRuntime.InvokeVoidAsync("drawAngryBirdsGame",
+            SlingshotX, SlingshotY, BirdPosition.X, BirdPosition.Y,
+            MousePosition.X, MousePosition.Y, IsDragging,
+            Pigs,  // 直接传递Pigs列表
+            Explosions,  // 直接传递Explosions列表
+            Score, BirdsLeft);
+    }
+    
+    // 更新爆炸效果
+    private void UpdateExplosions()
+    {
+        foreach (var explosion in Explosions)
+        {
+            if (explosion.IsActive)
+            {
+                // 增加爆炸半径
+                explosion.Radius += 5;
+                
+                // 检查是否达到最大半径
+                if (explosion.Radius >= explosion.MaxRadius)
+                {
+                    explosion.IsActive = false;
+                }
+            }
+        }
+    }
+    
+    // 猪头类
+    private class Pig
+    {
+        public int X { get; set; }
+        public int Y { get; set; }
+        public int Width { get; set; }
+        public int Height { get; set; }
+        public bool IsHit { get; set; }
+    }
+    
+    // 爆炸类
+    private class Explosion
+    {
+        public int X { get; set; }
+        public int Y { get; set; }
+        public float Radius { get; set; }
+        public float MaxRadius { get; set; }
+        public bool IsActive { get; set; }
+    }
+    
+    public void Dispose()
+    {
+        // 清理资源
+    }
+}
+
+<style>
+    .game-container {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 20px;
+    }
+    
+    #gameCanvas {
+        border: 3px solid #333;
+        border-radius: 8px;
+        background-color: #87CEEB;
+    }
+    
+    .game-info {
+        text-align: center;
+    }
+    
+    h3 {
+        margin-bottom: 10px;
+    }
+</style>
+
+<script>
+    function drawAngryBirdsGame(slingshotX, slingshotY, birdX, birdY, mouseX, mouseY, isDragging, pigs, explosions, score, birdsLeft) {
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // 添加调试信息
+        console.log('Pigs:', pigs);
+        console.log('Explosions:', explosions);
+        
+        // 清空画布
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        
+        // 绘制天空背景
+        ctx.fillStyle = '#87CEEB';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // 绘制地面
+        ctx.fillStyle = '#8B4513';
+        ctx.fillRect(0, 500, canvas.width, canvas.height - 500);
+        
+        // 绘制弹弓
+        ctx.strokeStyle = '#8B4513';
+        ctx.lineWidth = 8;
+        
+        // 弹弓支柱
+        ctx.beginPath();
+        ctx.moveTo(slingshotX - 20, slingshotY - 100);
+        ctx.lineTo(slingshotX - 20, slingshotY + 50);
+        ctx.moveTo(slingshotX + 20, slingshotY - 100);
+        ctx.lineTo(slingshotX + 20, slingshotY + 50);
+        ctx.stroke();
+        
+        // 弹弓顶部
+        ctx.beginPath();
+        ctx.moveTo(slingshotX - 20, slingshotY - 100);
+        ctx.lineTo(slingshotX + 20, slingshotY - 100);
+        ctx.stroke();
+        
+        // 绘制弹弓皮筋
+        if (isDragging) {
+            ctx.strokeStyle = '#FF69B4';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(slingshotX - 20, slingshotY);
+            ctx.lineTo(birdX, birdY);
+            ctx.moveTo(slingshotX + 20, slingshotY);
+            ctx.lineTo(birdX, birdY);
+            ctx.stroke();
+        }
+        
+        // 绘制猪头（简化版）
+        pigs.forEach(pig => {
+            if (!pig.IsHit) {
+                // 使用简单的矩形绘制，确保能看到
+                ctx.fillStyle = '#FFD700';
+                ctx.fillRect(pig.X, pig.Y, pig.Width, pig.Height);
+                
+                // 绘制简单的眼睛
+                ctx.fillStyle = '#000000';
+                ctx.fillRect(pig.X + pig.Width * 0.3, pig.Y + pig.Height * 0.3, pig.Width * 0.1, pig.Width * 0.1);
+                ctx.fillRect(pig.X + pig.Width * 0.6, pig.Y + pig.Height * 0.3, pig.Width * 0.1, pig.Width * 0.1);
+                
+                // 绘制简单的鼻子
+                ctx.fillStyle = '#FF6347';
+                ctx.fillRect(pig.X + pig.Width * 0.4, pig.Y + pig.Height * 0.5, pig.Width * 0.2, pig.Height * 0.2);
+            }
+        });
+        
+        // 绘制爆炸效果
+        explosions.forEach(explosion => {
+            if (explosion.IsActive) {
+                // 爆炸的外层冲击波
+                ctx.fillStyle = 'rgba(255, 165, 0, 0.7)';
+                ctx.beginPath();
+                ctx.arc(explosion.X, explosion.Y, explosion.Radius, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 爆炸的内层火焰
+                ctx.fillStyle = 'rgba(255, 0, 0, 0.8)';
+                ctx.beginPath();
+                ctx.arc(explosion.X, explosion.Y, explosion.Radius * 0.5, 0, Math.PI * 2);
+                ctx.fill();
+                
+                // 爆炸的中心
+                ctx.fillStyle = 'rgba(255, 255, 0, 1)';
+                ctx.beginPath();
+                ctx.arc(explosion.X, explosion.Y, explosion.Radius * 0.2, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        });
+        
+        // 绘制小鸟
+        ctx.fillStyle = '#FF4500';
+        ctx.beginPath();
+        ctx.arc(birdX, birdY, 20, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // 小鸟眼睛
+        ctx.fillStyle = '#FFFFFF';
+        ctx.beginPath();
+        ctx.arc(birdX + 8, birdY - 5, 6, 0, Math.PI * 2);
+        ctx.fill();
+        
+        ctx.fillStyle = '#000000';
+        ctx.beginPath();
+        ctx.arc(birdX + 10, birdY - 5, 2, 0, Math.PI * 2);
+        ctx.fill();
+        
+        // 小鸟嘴巴
+        ctx.fillStyle = '#FFD700';
+        ctx.beginPath();
+        ctx.moveTo(birdX + 15, birdY);
+        ctx.lineTo(birdX + 25, birdY - 5);
+        ctx.lineTo(birdX + 25, birdY + 5);
+        ctx.closePath();
+        ctx.fill();
+        
+        // 绘制分数
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '24px Arial';
+        ctx.fillText(`分数: ${score}`, 10, 30);
+        ctx.fillText(`剩余小鸟: ${birdsLeft}`, 10, 60);
+    }
+</script>

@@ -1,0 +1,697 @@
+@page "/games/teris"
+@using Microsoft.JSInterop
+@inject IJSRuntime JSRuntime
+@implements IDisposable
+
+<h3 class="text-center mb-4">俄罗斯方块</h3>
+
+<div class="game-container">
+    <div class="game-info">
+        <div class="score">
+            <h4>分数</h4>
+            <p>@Score</p>
+        </div>
+        <div class="next-piece">
+            <h4>下一个</h4>
+            <div class="next-piece-container">
+                @if (NextPiece?.Shape != null)
+            {
+                int shapeHeight = NextPiece.Shape.GetLength(0);
+                int shapeWidth = NextPiece.Shape.GetLength(1);
+                
+                @for (int i = 0; i < shapeHeight; i++)
+                {
+                    <div class="next-piece-row">
+                        @for (int j = 0; j < shapeWidth; j++)
+                        {
+                            <div class="tetromino-cell @(NextPiece.Shape[i, j] > 0 ? GetColorClass(NextPiece.Shape[i, j]) : "empty")"></div>
+                        }
+                    </div>
+                }
+            }
+            </div>
+        </div>
+        <div class="controls">
+            <button class="btn btn-primary" @onclick="StartGame" disabled="@IsPlaying">开始游戏</button>
+            <button class="btn btn-warning" @onclick="PauseGame" disabled="@(!IsPlaying || IsPaused)">暂停</button>
+            <button class="btn btn-danger" @onclick="ResetGame">重置</button>
+        </div>
+        <div class="instructions">
+            <h5>操作说明</h5>
+            <p>← → 左右移动</p>
+            <p>↑ 旋转方块</p>
+            <p>↓ 加速下落</p>
+            <p>空格键 直接下落</p>
+        </div>
+    </div>
+
+    <div class="game-board">
+        @if (GameOver)
+        {
+            <div class="game-over-overlay">
+                <h2>游戏结束</h2>
+                <p>最终分数: @Score</p>
+                <button class="btn btn-primary" @onclick="ResetGame">再来一局</button>
+            </div>
+        }
+        
+        @for (int i = 0; i < GameBoard.GetLength(0); i++)
+        {
+            <div class="board-row">
+                @for (int j = 0; j < GameBoard.GetLength(1); j++)
+                {
+                    <div class="tetromino-cell @GetCellColor(i, j)"></div>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    // 游戏常量
+    private const int BoardWidth = 10;
+    private const int BoardHeight = 20;
+    private const int CellSize = 30;
+    private const int Speed = 1000; // 毫秒
+
+    // 游戏状态
+    private int[,] GameBoard = new int[BoardHeight, BoardWidth];
+    private Tetromino CurrentPiece = new Tetromino();
+    private Tetromino NextPiece = new Tetromino();
+    private int Score = 0;
+    private bool IsPlaying = false;
+    private bool IsPaused = false;
+    private bool GameOver = false;
+    private bool IsGameLoopRunning = false;
+
+    // 方块形状定义
+    private readonly int[][,] TetrominoShapes = new int[][,]
+    {
+        // I形
+        new int[,] { { 0, 0, 0, 0 }, { 1, 1, 1, 1 }, { 0, 0, 0, 0 }, { 0, 0, 0, 0 } },
+        // O形
+        new int[,] { { 2, 2 }, { 2, 2 } },
+        // T形
+        new int[,] { { 0, 3, 0 }, { 3, 3, 3 }, { 0, 0, 0 } },
+        // S形
+        new int[,] { { 0, 4, 4 }, { 4, 4, 0 }, { 0, 0, 0 } },
+        // Z形
+        new int[,] { { 5, 5, 0 }, { 0, 5, 5 }, { 0, 0, 0 } },
+        // J形
+        new int[,] { { 6, 0, 0 }, { 6, 6, 6 }, { 0, 0, 0 } },
+        // L形
+        new int[,] { { 0, 0, 7 }, { 7, 7, 7 }, { 0, 0, 0 } }
+    };
+
+    // 颜色类映射
+    private readonly Dictionary<int, string> ColorClasses = new Dictionary<int, string>
+    {
+        { 1, "cyan" },
+        { 2, "yellow" },
+        { 3, "purple" },
+        { 4, "green" },
+        { 5, "red" },
+        { 6, "blue" },
+        { 7, "orange" }
+    };
+
+    protected override void OnInitialized()
+    {
+        InitializeGame();
+    }
+
+
+
+    private void InitializeGame()
+    {
+        // 初始化游戏板
+        GameBoard = new int[BoardHeight, BoardWidth];
+        for (int i = 0; i < BoardHeight; i++)
+        {
+            for (int j = 0; j < BoardWidth; j++)
+            {
+                GameBoard[i, j] = 0;
+            }
+        }
+
+        // 生成第一个方块
+        CurrentPiece = GenerateRandomPiece();
+        NextPiece = GenerateRandomPiece();
+        Score = 0;
+        IsPlaying = false;
+        IsPaused = false;
+        GameOver = false;
+    }
+
+    private Tetromino GenerateRandomPiece()
+    {
+        var random = new Random();
+        var shapeIndex = random.Next(TetrominoShapes.Length);
+        var shape = TetrominoShapes[shapeIndex];
+        
+        // 计算方块的宽度和高度
+        int height = shape.GetLength(0);
+        int width = shape.GetLength(1);
+        
+        return new Tetromino
+        {
+            Shape = shape,
+            X = (BoardWidth - width) / 2,
+            Y = 0,
+            Color = shapeIndex + 1
+        };
+    }
+
+    private void StartGame()
+    {
+        if (!IsPlaying && !GameOver && !IsGameLoopRunning)
+        {
+            IsPlaying = true;
+            IsPaused = false;
+            IsGameLoopRunning = true;
+            _ = GameLoop();
+        }
+    }
+
+    private void PauseGame()
+    {
+        if (IsPlaying && !GameOver)
+        {
+            IsPaused = true;
+        }
+    }
+
+    private void ResetGame()
+    {
+        IsGameLoopRunning = false;
+        IsPlaying = false;
+        InitializeGame();
+    }
+
+    private async Task GameLoop()
+    {
+        while (IsPlaying && !GameOver)
+        {
+            if (!IsPaused)
+            {
+                MoveDown();
+                // 立即更新状态以确保下落过程可见
+                await InvokeAsync(StateHasChanged);
+            }
+            await Task.Delay(Speed);
+        }
+        IsGameLoopRunning = false;
+    }
+
+    [JSInvokable]
+    public async Task HandleKeyPress(string key)
+    {
+        if (!IsPlaying || IsPaused || GameOver)
+            return;
+
+        switch (key)
+        {
+            case "ArrowLeft":
+                MoveLeft();
+                break;
+            case "ArrowRight":
+                MoveRight();
+                break;
+            case "ArrowDown":
+                MoveDown();
+                break;
+            case "ArrowUp":
+                Rotate();
+                break;
+            case " ":
+                HardDrop();
+                break;
+        }
+        
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void MoveLeft()
+    {
+        if (CurrentPiece != null)
+        {
+            CurrentPiece.X--;
+            if (CheckCollision())
+            {
+                CurrentPiece.X++;
+            }
+        }
+    }
+
+    private void MoveRight()
+    {
+        if (CurrentPiece != null)
+        {
+            CurrentPiece.X++;
+            if (CheckCollision())
+            {
+                CurrentPiece.X--;
+            }
+        }
+    }
+
+    private void MoveDown()
+    {
+        if (CurrentPiece != null)
+        {
+            CurrentPiece.Y++;
+            if (CheckCollision())
+            {
+                CurrentPiece.Y--;
+                LockPiece();
+                ClearLines();
+                SpawnNewPiece();
+            }
+        }
+    }
+
+    private void HardDrop()
+    {
+        if (CurrentPiece != null)
+        {
+            while (!CheckCollision())
+            {
+                CurrentPiece.Y++;
+            }
+            CurrentPiece.Y--;
+            LockPiece();
+            ClearLines();
+            SpawnNewPiece();
+        }
+    }
+
+    private void Rotate()
+    {
+        if (CurrentPiece != null && CurrentPiece.Shape != null)
+        {
+            var rotatedShape = RotateMatrix(CurrentPiece.Shape);
+            var originalShape = CurrentPiece.Shape;
+            
+            CurrentPiece.Shape = rotatedShape;
+            
+            if (CheckCollision())
+            {
+                // 尝试墙踢
+                for (int offset = 1; offset <= 2; offset++)
+                {
+                    CurrentPiece.X += offset;
+                    if (!CheckCollision()) return;
+                    CurrentPiece.X -= offset;
+                    
+                    CurrentPiece.X -= offset;
+                    if (!CheckCollision()) return;
+                    CurrentPiece.X += offset;
+                    
+                    CurrentPiece.Y += offset;
+                    if (!CheckCollision()) return;
+                    CurrentPiece.Y -= offset;
+                }
+                
+                // 如果所有墙踢都失败，恢复原始形状
+                CurrentPiece.Shape = originalShape;
+            }
+        }
+    }
+
+    private int[,] RotateMatrix(int[,] matrix)
+    {
+        int rows = matrix.GetLength(0);
+        int cols = matrix.GetLength(1);
+        int[,] result = new int[cols, rows];
+        
+        for (int i = 0; i < rows; i++)
+        {
+            for (int j = 0; j < cols; j++)
+            {
+                result[j, rows - 1 - i] = matrix[i, j];
+            }
+        }
+        
+        return result;
+    }
+
+    private bool CheckCollision()
+    {
+        if (CurrentPiece == null || CurrentPiece.Shape == null)
+            return false;
+            
+        int rows = CurrentPiece.Shape.GetLength(0);
+        int cols = CurrentPiece.Shape.GetLength(1);
+        
+        for (int i = 0; i < rows; i++)
+        {
+            for (int j = 0; j < cols; j++)
+            {
+                if (CurrentPiece.Shape[i, j] > 0)
+                {
+                    int x = CurrentPiece.X + j;
+                    int y = CurrentPiece.Y + i;
+                    
+                    // 检查边界
+                    if (x < 0 || x >= BoardWidth || y >= BoardHeight)
+                        return true;
+                    
+                    // 检查是否与已锁定的方块碰撞
+                    if (y >= 0 && GameBoard[y, x] > 0)
+                        return true;
+                }
+            }
+        }
+        
+        return false;
+    }
+
+    private void LockPiece()
+    {
+        if (CurrentPiece == null || CurrentPiece.Shape == null)
+            return;
+            
+        int rows = CurrentPiece.Shape.GetLength(0);
+        int cols = CurrentPiece.Shape.GetLength(1);
+        
+        for (int i = 0; i < rows; i++)
+        {
+            for (int j = 0; j < cols; j++)
+            {
+                if (CurrentPiece.Shape[i, j] > 0)
+                {
+                    int x = CurrentPiece.X + j;
+                    int y = CurrentPiece.Y + i;
+                    
+                    if (y >= 0)
+                    {
+                        GameBoard[y, x] = CurrentPiece.Color;
+                    }
+                }
+            }
+        }
+    }
+
+    private void ClearLines()
+    {
+        int linesCleared = 0;
+        
+        for (int i = BoardHeight - 1; i >= 0; i--)
+        {
+            bool isLineFull = true;
+            
+            for (int j = 0; j < BoardWidth; j++)
+            {
+                if (GameBoard[i, j] == 0)
+                {
+                    isLineFull = false;
+                    break;
+                }
+            }
+            
+            if (isLineFull)
+            {
+                linesCleared++;
+                
+                // 清除当前行并将上面的行下移
+                for (int k = i; k > 0; k--)
+                {
+                    for (int j = 0; j < BoardWidth; j++)
+                    {
+                        GameBoard[k, j] = GameBoard[k - 1, j];
+                    }
+                }
+                
+                // 清空第一行
+                for (int j = 0; j < BoardWidth; j++)
+                {
+                    GameBoard[0, j] = 0;
+                }
+                
+                // 重新检查当前行
+                i++;
+            }
+        }
+        
+        // 更新分数
+        if (linesCleared > 0)
+        {
+            Score += CalculateScore(linesCleared);
+        }
+    }
+
+    private int CalculateScore(int linesCleared)
+    {
+        // 分数计算规则
+        switch (linesCleared)
+        {
+            case 1: return 100;
+            case 2: return 300;
+            case 3: return 500;
+            case 4: return 800;
+            default: return 0;
+        }
+    }
+
+    private void SpawnNewPiece()
+    {
+        CurrentPiece = NextPiece;
+        NextPiece = GenerateRandomPiece();
+        
+        // 检查游戏是否结束
+        if (CheckCollision())
+        {
+            GameOver = true;
+            IsPlaying = false;
+            IsGameLoopRunning = false;
+        }
+    }
+
+    private string GetColorClass(int color)
+    {
+        return ColorClasses.TryGetValue(color, out var className) ? className : "";
+    }
+
+    private string GetCellColor(int y, int x)
+    {
+        // 先检查游戏板上已锁定的方块
+        if (GameBoard[y, x] > 0)
+        {
+            return GetColorClass(GameBoard[y, x]);
+        }
+        
+        // 再检查当前正在下落的方块
+        if (CurrentPiece != null && CurrentPiece.Shape != null)
+        {
+            // 计算当前下落方块的边界
+            int pieceStartY = CurrentPiece.Y;
+            int pieceEndY = pieceStartY + CurrentPiece.Shape.GetLength(0);
+            int pieceStartX = CurrentPiece.X;
+            int pieceEndX = pieceStartX + CurrentPiece.Shape.GetLength(1);
+            
+            // 检查当前单元格是否在下落方块的范围内
+            if (y >= pieceStartY && y < pieceEndY && x >= pieceStartX && x < pieceEndX)
+            {
+                // 计算在方块形状中的相对位置
+                int pieceLocalY = y - pieceStartY;
+                int pieceLocalX = x - pieceStartX;
+                
+                // 如果该位置有方块，则返回方块的颜色
+                if (CurrentPiece.Shape[pieceLocalY, pieceLocalX] > 0)
+                {
+                    return GetColorClass(CurrentPiece.Color);
+                }
+            }
+        }
+        
+        // 默认返回空单元格
+        return "empty";
+    }
+
+    private class Tetromino
+    {
+        public int[,] Shape { get; set; } = new int[4, 4];
+        public int X { get; set; }
+        public int Y { get; set; }
+        public int Color { get; set; }
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            // 注册键盘事件处理
+            await JSRuntime.InvokeVoidAsync("registerKeyboardHandler", DotNetObjectReference.Create(this));
+        }
+    }
+
+    // 释放资源
+    public void Dispose()
+    {
+        // 游戏循环会自动停止
+        IsGameLoopRunning = false;
+        // 移除键盘事件监听
+        _ = JSRuntime.InvokeVoidAsync("unregisterKeyboardHandler");
+    }
+}
+
+<style>
+    .game-container {
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        gap: 20px;
+        max-width: 800px;
+        margin: 0 auto;
+    }
+
+    .game-info {
+        display: flex;
+        flex-direction: column;
+        gap: 20px;
+        min-width: 200px;
+    }
+
+    .score, .next-piece, .controls, .instructions {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 8px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+    }
+
+    .score p {
+        font-size: 24px;
+        font-weight: bold;
+        margin: 0;
+        color: #dc3545;
+    }
+
+    .next-piece-container {
+        width: 120px;
+        height: 120px;
+        margin: 0 auto;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .next-piece-row {
+        display: flex;
+    }
+
+    .game-board {
+        background-color: #212529;
+        border: 3px solid #495057;
+        border-radius: 8px;
+        padding: 10px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    }
+
+    .board-row {
+        display: flex;
+    }
+
+    .tetromino-cell {
+        width: 30px;
+        height: 30px;
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        box-sizing: border-box;
+    }
+
+    .tetromino-cell.empty {
+        background-color: transparent;
+    }
+
+    .tetromino-cell.cyan {
+        background-color: #00ffff;
+    }
+
+    .tetromino-cell.yellow {
+        background-color: #ffff00;
+    }
+
+    .tetromino-cell.purple {
+        background-color: #800080;
+    }
+
+    .tetromino-cell.green {
+        background-color: #00ff00;
+    }
+
+    .tetromino-cell.red {
+        background-color: #ff0000;
+    }
+
+    .tetromino-cell.blue {
+        background-color: #0000ff;
+    }
+
+    .tetromino-cell.orange {
+        background-color: #ffa500;
+    }
+
+    .game-over-overlay {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background-color: rgba(0, 0, 0, 0.8);
+        color: white;
+        padding: 30px;
+        border-radius: 10px;
+        text-align: center;
+        z-index: 10;
+    }
+
+    .game-over-overlay h2 {
+        color: #dc3545;
+        margin-bottom: 20px;
+    }
+
+    .controls button {
+        width: 100%;
+        margin-bottom: 10px;
+    }
+
+    .controls button:last-child {
+        margin-bottom: 0;
+    }
+
+    .instructions p {
+        margin: 5px 0;
+        font-size: 14px;
+    }
+</style>
+
+<script>
+    let gameComponent = null;
+    
+    // 注册键盘事件处理
+    window.registerKeyboardHandler = function(componentRef) {
+        gameComponent = componentRef;
+        window.addEventListener('keydown', handleKeyDown);
+    };
+    
+    // 移除键盘事件处理
+    window.unregisterKeyboardHandler = function() {
+        window.removeEventListener('keydown', handleKeyDown);
+        gameComponent = null;
+    };
+    
+    // 处理键盘事件
+    function handleKeyDown(event) {
+        // 避免在输入框等元素中触发游戏控制
+        if (event.target.tagName === 'INPUT' || event.target.tagName === 'TEXTAREA' || event.target.isContentEditable) {
+            return;
+        }
+        
+        // 阻止默认行为，避免页面滚动
+        event.preventDefault();
+        
+        // 调用Blazor组件方法处理按键
+        if (gameComponent) {
+            gameComponent.invokeMethodAsync('HandleKeyPress', event.key);
+        }
+    }
+</script>
